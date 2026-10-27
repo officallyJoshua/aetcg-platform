@@ -42,11 +42,12 @@ def update_worker_health_signal():
 
 def process_pipeline_task(payload: dict):
     from pipeline.orchestrator import StateMachineOrchestrator
+    from rq import get_current_job
     start_time = time.time()
 
-    # Mark worker as processing a job
-    set_gauge(WORKER_STATUS, 1, {"worker_id": "worker_1"})
-    set_gauge(QUEUE_PROCESSING_JOBS, 1, {"queue_name": "aetcg_jobs"})
+    current_job = get_current_job()
+    if current_job:
+        payload["job_id"] = current_job.id
 
     try:
         orchestrator = StateMachineOrchestrator()

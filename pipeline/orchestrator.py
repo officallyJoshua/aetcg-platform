@@ -81,17 +81,28 @@ class StateMachineOrchestrator:
         else:
             increment_counter(COMPLIANCE_FAIL_TOTAL)
 
-        # Step 4: Conditional Routing Gate Based on Risk Thresholds
-        if state["risk_score"] >= 7:
-            state["status"] = "PAUSED_FOR_REVIEW"
-            # Serialize state frame to Redis cache to allow human callback resumption
-            self.redis_client.set(f"state:{raw_job_data['ticket_id']}", json.dumps(state))
+        # Step 4: Conditional Routing Gate Based on Risk Thresholds & Critic Governance
+        audit_passed = critic_output.get("audit_passed", True)
 
-            # Record that this ticket went to review
-            # This could be a separate metric if needed
+        if state["risk_score"] >= 7 or not audit_passed:
+            state["status"] = "PAUSED_FOR_REVIEW"
+            if not audit_passed:
+                state["escalation_reason"] = f"CRITIC_DISAGREEMENT: {critic_output.get('feedback', '')}"
+
+            # Store under ticket_id
+            self.redis_client.set(f"state:{raw_job_data['ticket_id']}", json.dumps(state))
+            # Store under job_id mapping if available
+            if "job_id" in raw_job_data:
+                self.redis_client.set(f"state:{raw_job_data['job_id']}", json.dumps(state))
             return state
 
         state["status"] = "COMPLETED"
+
+        # Record total workflow time
+        workflow_time = time.time() - start_time
+        observe_histogram(TICKET_PROCESSING_TIME_SECONDS, workflow_time, {"status": "success"})
+
+        return state
 
         # Record total workflow time
         workflow_time = time.time() - start_time

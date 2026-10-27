@@ -366,6 +366,7 @@ async def get_state(job_id: str):
 
     return json.loads(ticket_state)
 
+
 # Milestone 5: Human-In-The-Loop Interactive Webhook Routing
 @app.put("/api/v1/approve/{job_id}", status_code=status.HTTP_200_OK)
 async def administrative_approval_gate(request: Request, job_id: str, action: str, supervisor_token: str):
@@ -390,8 +391,12 @@ async def administrative_approval_gate(request: Request, job_id: str, action: st
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized gate access.")
 
     # Simulate loading state container from database/Redis cache and advancing graph
+    # Simulate loading state container from database/Redis cache and advancing graph
     state_key = f"state:{job_id}"
     cached_state = redis_client.get(state_key)
+    if not cached_state:
+        # Fallback to secondary lookup if client provided ticket_id
+        cached_state = redis_client.get(f"state:{job_id}")
     observe_histogram(REDIS_LATENCY_SECONDS, time.time() - start_time, {"operation": "get"})
 
     if not cached_state:
