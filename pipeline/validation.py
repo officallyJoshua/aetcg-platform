@@ -4,6 +4,9 @@ import os
 from pydantic import BaseModel, Field, field_validator
 from typing import Dict, Pattern
 
+# Strict corporate email pattern: valid local part, single @, enterprise.com domain
+EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@enterprise\.com$")
+
 class TicketIngestionSchema(BaseModel):
     ticket_id: str = Field(..., description="Unique alphanumeric tracking string.")
     reporter_email: str = Field(..., description="Corporate sender communication handle.")
@@ -12,8 +15,8 @@ class TicketIngestionSchema(BaseModel):
     @field_validator('reporter_email')
     @classmethod
     def validate_corporate_domain(cls, value: str) -> str:
-        if not value.endswith("@enterprise.com"):
-            raise ValueError("Ingestion restricted to internal corporate system users.")
+        if not EMAIL_REGEX.match(value):
+            raise ValueError("Must be a valid corporate address matching [user]@enterprise.com")
         return value
 
 class DataSanitizationPipeline:
@@ -25,7 +28,7 @@ class DataSanitizationPipeline:
             "credit_card": re.compile(r'\b\d{4}-\d{4}-\d{4}-\d{4}\b'),
             # Additional PII patterns
             "email": re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
-            "phone": re.compile(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b'),
+            "phone": re.compile(r'\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b'),
             "api_key": re.compile(r'\b[A-Za-z0-9_-]{32,}\b'),  # Generic API key pattern
             "ip_address": re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b'),
         }
